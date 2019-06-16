@@ -24,7 +24,7 @@ class Parser(object):
         currCharNum = 0
         tokenValue = ''
         tokens = list()
-        keywords = set(['class', 'int', 'main', 'CreateInstance', 'this', 'if', 'while'])
+        keywords = set(['class', 'int', 'main', 'CreateInstance', 'this', 'if', 'while', 'print'])
         i = 0
         while (i < len(srcFile)):
             c = srcFile[i]

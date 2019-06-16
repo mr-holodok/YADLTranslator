@@ -1,1 +1,0 @@
-class { int a =-55; met(coco c) {c.call()}}

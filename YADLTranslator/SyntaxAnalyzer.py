@@ -232,18 +232,26 @@ class SyntaxAnalyzer(object):
 
             if methodParamName != None and methodParamType != 'int':
                 self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
-                    'MOV EBX, [EBP + 12] \n' 
+                    'MOV EBX, [EBP + 12] \n'
                 for i in range(0, len(self.definedClasses[methodParamType].vars)):
                     self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
                         'MOV EAX, [EBP - ' + str(4*i) + '] \n' \
                         + 'MOV [EBX - ' + str(4*i) + '], EAX \n'
+                self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, ' + str(len(4*self.definedClasses[methodParamType].vars)) + '\n'
+            elif methodParamName != None and methodParamType == 'int':
+                self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, 4 \n'
 
-            self.listingsForClasses[self.currentClassName][self.currentMethodName] += 'MOV ESP, EBP \n' \
-                                                                                   + 'POP EBP \n' 
-            if methodParamName != None:
-                self.listingsForClasses[self.currentClassName][self.currentMethodName] += 'RET 4 \n'
-            else:
-                self.listingsForClasses[self.currentClassName][self.currentMethodName] += 'RET \n'
+            # cleans up the stack
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, ' + str(self.GetLocalVarsSize()) + '\n'
+
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                            'MOV ESP, EBP \n' \
+                            + 'POP EBP \n' 
+
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += 'RET \n'
             
             if not self.Match(self.GetNextToken(), TokenType.C_FIGURE_BRACKET):
                 raise Exception()
@@ -511,7 +519,8 @@ class SyntaxAnalyzer(object):
                                     + 'PUSH EAX \n'     \
                                     + 'MOV EAX, [EBP + 8] \n' \
                                     + 'PUSH EAX \n'     \
-                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                                    + 'ADD ESP, 8 \n'
                 if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                         or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                     raise Exception()
@@ -535,7 +544,8 @@ class SyntaxAnalyzer(object):
                     + 'PUSH EAX \n'     \
                     + 'MOV EAX, [EBP + 8] \n' \
                     + 'PUSH EAX \n'     \
-                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                    + 'ADD ESP, 8 \n'
                 if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                         or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                     raise Exception()
@@ -555,16 +565,20 @@ class SyntaxAnalyzer(object):
                                     + 'PUSH EAX \n'     \
                                     + 'MOV EAX, [EBP + 8] \n' \
                                     + 'PUSH EAX \n'     \
-                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                                    + 'ADD ESP, 8 \n'
                 if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                         or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                     raise Exception()
             elif self.Match(self.GetCurrentToken(), TokenType.C_ROUND_BRACKET):
                 # method call without parameter
+                if methodData.paramName != None:
+                        raise Exception('Method ' + methodName + ' expects parameter!')
                 self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
                                     'MOV EAX, [EBP + 8] \n' \
                                     + 'PUSH EAX \n'     \
-                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                                    + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                                    + 'ADD ESP, 4 \n'
                 if not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                     raise Exception()
             else:
@@ -607,7 +621,8 @@ class SyntaxAnalyzer(object):
                                     + 'MOV EAX, EBP \n' \
                                     + 'SUB EAX, ' + str(self.CalculateLocationOfVariableInStackFromTop(objName)) + ' \n'   \
                                     + 'PUSH EAX \n'     \
-                                    + 'CALL ' + '_' + objData.type + '_' + methodData.name + '\n'
+                                    + 'CALL ' + '_' + objData.type + '_' + methodData.name + '\n' \
+                                    + 'ADD ESP, 8 \n'
                     if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                             or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                         raise Exception()
@@ -632,7 +647,8 @@ class SyntaxAnalyzer(object):
                         + 'MOV EAX, EBP \n' \
                         + 'SUB EAX, ' + str(self.CalculateLocationOfVariableInStackFromTop(objName)) + ' \n'   \
                         + 'PUSH EAX \n'     \
-                        + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                        + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                        + 'ADD ESP, 8 \n'
                     if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                             or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                         raise Exception()
@@ -653,17 +669,21 @@ class SyntaxAnalyzer(object):
                                         + 'MOV EAX, EBP \n' \
                                         + 'SUB EAX, ' + str(self.CalculateLocationOfVariableInStackFromTop(objName)) + ' \n'   \
                                         + 'PUSH EAX \n'     \
-                                        + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n'
+                                        + 'CALL ' + '_' + self.currentClassName + '_' + methodName + '\n' \
+                                        + 'ADD ESP, 8 \n'
                     if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
                             or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                         raise Exception()
                 elif self.Match(self.GetCurrentToken(), TokenType.C_ROUND_BRACKET):
                     # method call without parameter
+                    if methodData.paramName != None:
+                        raise Exception('Method ' + methodData.name + ' expects parameter!')
                     self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
                                     'MOV EAX, EBP \n' \
                                     + 'SUB EAX, ' + str(self.CalculateLocationOfVariableInStackFromTop(objName)) + ' \n'   \
                                     + 'PUSH EAX \n'     \
-                                    + 'CALL ' + '_' + objData.type + '_' + methodData.name + '\n'
+                                    + 'CALL ' + '_' + objData.type + '_' + methodData.name + '\n' \
+                                    + 'ADD ESP, 4 \n'
                     if not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                         raise Exception()
                 else:
@@ -1012,6 +1032,8 @@ class SyntaxAnalyzer(object):
 
             self.Statements()
 
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, ' + str(len(self.localSymbolTable.GetLastTable().symbolsData)) + '\n'
             self.localSymbolTable.RemoveLastScopeTable()
 
             self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
@@ -1145,6 +1167,9 @@ class SyntaxAnalyzer(object):
 
             self.Statements()
 
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, ' + str(len(self.localSymbolTable.GetLastTable().symbolsData)) + '\n'
+
             self.localSymbolTable.RemoveLastScopeTable()
 
             self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
@@ -1161,19 +1186,53 @@ class SyntaxAnalyzer(object):
     def PrintStatement(self):
         try:
             if not self.Match(self.GetNextToken(), TokenType.KEYWORD, 'print') \
-                    or not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET):
+                    or not self.Match(self.GetNextToken(), TokenType.O_ROUND_BRACKET):
                 raise Exception()
 
             if self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
-                pass
-            if self.Match(self.GetCurrentToken(), TokenType.KEYWORD, 'this') \
+                if self.Match(self.PeekNextToken(), TokenType.ACCESS):
+                    objName = self.GetCurrentToken().value
+                    objData = self.localSymbolTable.FindSymbolGlobal(objName)
+                    if objData == None:
+                        raise Exception('Variable ' + objName + " is undefined in method " + self.currentMethodName + '!')
+                    self.GetNextToken()
+                    if not self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
+                        raise Exception()
+                    varName = self.GetCurrentToken().value
+                    if varName not in self.definedClasses[objData.type].vars:
+                        raise Exception('Variable ' + varName + ' is undefined in class ' + objData.type + '!')
+                    self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                                'MOV EAX, [EBP - ' + str(self.CalculateLocationOfVariableInStackFromTop(objName) \
+                                + 4*self.definedClasses[objData.type].vars.index(varName)) + ']\n'
+                elif self.Match(self.PeekNextToken(), TokenType.C_ROUND_BRACKET):
+                    varData = self.localSymbolTable.FindSymbolGlobal(self.GetCurrentToken().value)
+                    if varData == None:
+                        raise Exception('Variable ' + varData.name + " is undefined in method " + self.currentMethodName + '!')
+                    elif varData.type != 'int':
+                        raise Exception('Variable of int type expected!')
+                    self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                                'MOV EAX, [EBP - ' + str(self.CalculateLocationOfVariableInStackFromTop(varData.name)) + ']\n'
+                else:
+                    raise Exception()
+            elif self.Match(self.GetCurrentToken(), TokenType.KEYWORD, 'this') \
                     and self.Match(self.GetNextToken(), TokenType.ACCESS) \
                     and self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
-                pass
+                varName = self.GetCurrentToken().value
+                if varName not in self.definedClasses[self.currentClassName]:
+                    raise Exception('Variable ' + varName + " is undefined in class " + self.currentClassName + '!')
+                self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                                'MOV EBX, [EBP - 8] \n' \
+                                + 'MOV EAX, [EBX - ' + str(4*self.definedClasses[self.currentClassName].vars.index(varName)) + ']\n'
             else:
                 raise Exception()
 
-            if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET):
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                'PUSH EAX \n' \
+                + 'CALL _Print \n' \
+                + 'ADD ESP, 4 \n'
+
+            if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
+                    or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                 raise Exception()
         except Exception as ex:
             raise Exception(str(ex))
@@ -1193,12 +1252,16 @@ class SyntaxAnalyzer(object):
             self.listingsForClasses[self.currentClassName] = dict()
             self.listingsForClasses[self.currentClassName][self.currentMethodName] = str()
             self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
-                        '_start: \n' \
+                        '_main: \n' \
                         + 'MOV EBP, ESP \n'
             
             self.localSymbolTable.Clear()
 
             self.Statements()
+
+            # cleans up the stack
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'ADD ESP, ' + str(self.GetLocalVarsSize()) + '\n'
 
             if not self.Match(self.GetNextToken(), TokenType.C_FIGURE_BRACKET):
                 raise Exception
@@ -1207,18 +1270,33 @@ class SyntaxAnalyzer(object):
 
 
     def BuildCode(self) -> str:
-        code = 'segment .text \n'    \
-                + 'global _start\n\n'\
+        code = 'extern _printf \n\n'    \
+                + 'section .data \n'    \
+                + "NumFormat: db '%d', 0xA, 0 \n\n" \
+                + 'section .text \n'    \
+                + 'global _main\n\n'    \
+                + '_Print: \n'          \
+                + 'PUSH EBP \n'         \
+                + 'MOV EBP, ESP \n'     \
+                + 'MOV EAX, [EBP+8] \n' \
+                + 'PUSH EAX \n'         \
+                + 'PUSH NumFormat \n'   \
+                + 'CALL _printf \n'     \
+                + 'SUB ESP, 8 \n'       \
+                + 'MOV ESP, EBP \n'     \
+                + 'POP EBP \n'          \
+                + 'RET \n'
+        # place function for printing numbers at code start
 
         code += self.listingsForClasses[None]['main']
 
-        code += 'mov eax, 1       ; linux system call number (sys_exit) \n'\
-                + 'int 0x80 \n\n'
+        code += 'XOR EAX, EAX \n'\
+                + 'RET \n\n' # exit sequence
 
         for className in self.listingsForClasses.keys():
             if className != None:
                 for methodName in self.listingsForClasses[className].keys():
-                    code += self.listingsForClasses[className][methodName]
+                    code += self.listingsForClasses[className][methodName] 
 
         return code
 
@@ -1237,3 +1315,13 @@ class SyntaxAnalyzer(object):
                 and self.Match(self.GetNextToken(), TokenType.ACCESS) \
                 and self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
             return # LValue.classVar
+
+    def GetLocalVarsSize(self) -> int:
+        # returns size in bytes of local variables
+        size = 0
+        for varData in self.localSymbolTable.GetLastTable().symbolsData:
+            if varData.type == 'int':
+                size += 4
+            else:
+                size += len(4*self.definedClasses[varData.type].vars)
+        return size
