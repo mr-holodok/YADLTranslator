@@ -25,6 +25,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="VariableTypes.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Parser.py">
       <SubType>Code</SubType>
     </Compile>

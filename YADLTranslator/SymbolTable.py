@@ -86,3 +86,9 @@ class SymbolTable(object):
         if self.FindSymbolInLastTable(name) != None:
             return False
         return True
+
+
+    def IsItMethodParamName(self, name:str) -> bool:
+        if self.paramSymbol != None and name == self.paramSymbol.name:
+            return True
+        return False

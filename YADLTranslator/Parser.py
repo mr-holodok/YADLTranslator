@@ -93,16 +93,19 @@ class Parser(object):
             elif state == ParseState.NUM:
                 if c.isnumeric():
                     tokenValue += c
-                elif c == ';' or c == ' ' or c == '\n' or c == '\t':
-                    num = int(tokenValue)
+                else:
+                    try:
+                        num = int(tokenValue)
+                    except ValueError:
+
+                        raise Exception('Wrong integer value at line: ' + str(currLineNum) +\
+                                    ' and position: ' + str(currCharNum))
                     if num < -2147483648 or num > 2147483647:
-                        raise Exception('Number should be in such bounds: [-2147483648 - 2147483647] !')
+                        raise Exception('Number should be in such bounds: [-2147483648 - 2147483647] ! Error at line: ' \
+                           + str(currLineNum) + ' and position: ' + str(currCharNum))
                     tokens.append(Token(TokenType.NUMBER, tokenValue, currLineNum, currCharNum-len(tokenValue)))
                     state = ParseState.INITIAL
                     i -= 1    # handle this char in INITIAL block
-                else:
-                    raise Exception('Unexpected char near the number token at line: ' + str(currLineNum) \
-                                    + ' and position: ' + str(currCharNum))
 
             i += 1
 
