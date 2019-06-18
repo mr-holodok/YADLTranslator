@@ -2,11 +2,13 @@ from enum import Enum
 from Token import Token
 from Token import TokenType
 
+
 class ParseState(Enum):
     """Enum of states for finite state machine in Parser"""
     INITIAL = 1
     ID = 2
     NUM = 3
+    STRING = 4
 
 
 class Parser(object):
@@ -24,7 +26,7 @@ class Parser(object):
         currCharNum = 0
         tokenValue = ''
         tokens = list()
-        keywords = set(['class', 'int', 'main', 'CreateInstance', 'this', 'if', 'while', 'print'])
+        keywords = set(['class', 'int', 'main', 'CreateInstance', 'this', 'if', 'while', 'print', 'prints', 'str'])
         i = 0
         while (i < len(srcFile)):
             c = srcFile[i]
@@ -35,6 +37,9 @@ class Parser(object):
                     tokenValue = c
                 elif c.isnumeric() or c == '-':
                     state = ParseState.NUM
+                    tokenValue = c
+                elif c == "'":
+                    state = ParseState.STRING
                     tokenValue = c
                 elif c == '\n':
                     currLineNum += 1
@@ -106,6 +111,13 @@ class Parser(object):
                     tokens.append(Token(TokenType.NUMBER, tokenValue, currLineNum, currCharNum-len(tokenValue)))
                     state = ParseState.INITIAL
                     i -= 1    # handle this char in INITIAL block
+            elif state == ParseState.STRING:
+                if c == "'":
+                    tokenValue += c
+                    tokens.append(Token(TokenType.STRING_LITERAL, tokenValue, currLineNum, currCharNum-len(tokenValue)))
+                    state = ParseState.INITIAL
+                else:
+                    tokenValue += c
 
             i += 1
 

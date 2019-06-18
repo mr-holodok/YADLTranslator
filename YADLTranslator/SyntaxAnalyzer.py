@@ -29,6 +29,9 @@ class SyntaxAnalyzer(object):
         self.listingsForClasses = dict()
         # variable for creating unique labels
         self.originalIdNum = 0
+        # for strings declarations
+        self.dataSection = 'section .data \n'     \
+                + "NumFormat: db '%d', 0xA, 0 \n" \
     
 
     def Analyze(self):
@@ -258,6 +261,8 @@ class SyntaxAnalyzer(object):
                 self.WhileStatement()
             elif self.Match(self.PeekNextToken(), TokenType.KEYWORD, 'print'):
                 self.PrintStatement()
+            elif self.Match(self.PeekNextToken(), TokenType.KEYWORD, 'prints'):
+                self.PrintStringStatement()
             else:
                 raise Exception()
         except Exception as ex:
@@ -306,6 +311,9 @@ class SyntaxAnalyzer(object):
         if i + 1 <= len(self.tokens)-1 \
                 and self.tokens[i+1].value == 'int':
             return True
+        if i + 1 <= len(self.tokens)-1 \
+                and self.tokens[i+1].value == 'str':
+            return True
         if i + 2 <= len(self.tokens)-1 \
                 and self.tokens[i+1].type == TokenType.IDENTIFIER \
                 and self.tokens[i+2].type == TokenType.IDENTIFIER:
@@ -328,6 +336,8 @@ class SyntaxAnalyzer(object):
             else:
                 if symbolData.type == 'int':
                     dwLength += 4
+                elif symbolData.type == 'str':
+                    continue
                 else: 
                     dwLength += 4 * len(self.definedClasses[symbolData.type].vars)
         while localTable.nextScopeTable != None:
@@ -341,6 +351,8 @@ class SyntaxAnalyzer(object):
                 else:
                     if symbolData.type == 'int':
                         dwLength += 4
+                    elif symbolData.type == 'str':
+                        continue
                     else: 
                         dwLength += 4 * len(self.definedClasses[symbolData.type].vars)
 
@@ -417,6 +429,24 @@ class SyntaxAnalyzer(object):
                         self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
                                 'MOV EDX, [EAX - ' + str(rightLocation + i*4) + '] \n' \
                                 + 'MOV [EBP - ' + str(objLocation + i*4) + '], EDX \n'
+
+            elif self.Match(self.GetCurrentToken(), TokenType.KEYWORD, 'str'):
+                # str var init
+                localVarName = self.GetNextToken().value
+                # check if var name is available
+                if not self.localSymbolTable.IsNameFreeInScope(localVarName):
+                    raise Exception('Variable with name ' + localVarName + ' has been already defined in local scope!')
+                elif localVarName in self.definedClasses.keys():
+                    raise Exception('Variable with name ' + localVarName + " can't be declared, because this name has been already occupied by class!")
+                
+                self.localSymbolTable.AddSymbol(SymbolData(localVarName, 'str'))
+
+                if not self.Match(self.GetNextToken(), TokenType.ASSIGN) \
+                        or not self.Match(self.GetNextToken(), TokenType.STRING_LITERAL):
+                    raise Exception()
+
+                self.dataSection += str(self.currentClassName) + '_' + self.currentMethodName + '_' + localVarName \
+                            + ': db "' + self.GetCurrentToken().value[1:-1] + '", 0xA, 0 \n'
 
             if not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
                 raise Exception()
@@ -676,6 +706,39 @@ class SyntaxAnalyzer(object):
             raise Exception(str(ex))
 
 
+    def PrintStringStatement(self):
+        try:
+            if not self.Match(self.GetNextToken(), TokenType.KEYWORD, 'prints') \
+                    or not self.Match(self.GetNextToken(), TokenType.O_ROUND_BRACKET):
+                raise Exception()
+
+            self.GetNextToken()
+            if self.Match(self.GetCurrentToken(), TokenType.IDENTIFIER):
+                varName = self.GetCurrentToken().value
+                varData = self.localSymbolTable.FindSymbolGlobal(varName)
+                if varData.type != 'str':
+                    raise Exception('String type expected!')
+                strIdentifier = str(self.currentClassName) + '_' + self.currentMethodName + '_' + varName
+            elif self.Match(self.GetCurrentToken(), TokenType.STRING_LITERAL):
+                strIdentifier = str(self.currentClassName) + '_' + self.currentMethodName + '_' \
+                        + str(self.GetOriginalIdNum())
+                self.dataSection += strIdentifier + ': db "' + self.GetCurrentToken().value[1:-1] \
+                        + '", 0xA, 0 \n'
+            else:
+                raise Exception('String type expected!')
+
+            self.listingsForClasses[self.currentClassName][self.currentMethodName] += \
+                        'PUSH DWORD ' + strIdentifier + '\n' \
+                        + 'CALL _PrintString \n' \
+                        + 'ADD ESP, 4 \n'
+
+            if not self.Match(self.GetNextToken(), TokenType.C_ROUND_BRACKET) \
+                    or not self.Match(self.GetNextToken(), TokenType.SEMICOLON):
+                raise Exception()
+        except Exception as ex:
+            raise Exception(str(ex))
+
+
     def MainDef(self):
         try:
             # uses rule: MAIN_METHOD_DEF -> main() { STATEMENTS }
@@ -709,8 +772,7 @@ class SyntaxAnalyzer(object):
 
     def BuildCode(self) -> str:
         code = 'extern _printf \n\n'    \
-                + 'section .data \n'    \
-                + "NumFormat: db '%d', 0xA, 0 \n\n" \
+                + self.dataSection + '\n'\
                 + 'section .text \n'    \
                 + 'global _main\n\n'    \
                 + '_Print: \n'          \
@@ -723,7 +785,17 @@ class SyntaxAnalyzer(object):
                 + 'SUB ESP, 8 \n'       \
                 + 'MOV ESP, EBP \n'     \
                 + 'POP EBP \n'          \
-                + 'RET \n'
+                + 'RET \n\n'            \
+                + '_PrintString: \n'    \
+                + 'PUSH EBP \n'         \
+                + 'MOV EBP, ESP \n'     \
+                + 'MOV EAX, [EBP+8] \n' \
+                + 'PUSH EAX \n'         \
+                + 'CALL _printf \n'     \
+                + 'SUB ESP, 4 \n'       \
+                + 'MOV ESP, EBP \n'     \
+                + 'POP EBP \n'          \
+                + 'RET \n\n'
         # place function for printing numbers at code start
 
         code += self.listingsForClasses[None]['main']
@@ -745,7 +817,7 @@ class SyntaxAnalyzer(object):
             if self.Match(self.PeekNextToken(), TokenType.ACCESS):
                 lobjectData = self.localSymbolTable.FindSymbolGlobal(self.GetCurrentToken().value)
                 if lobjectData == None:
-                    raise Exception('Variable ' + lobjectData.name + ' is undefined in method ' + self.currentMethodName + '!')
+                    raise Exception('Variable ' + self.GetCurrentToken().value + ' is undefined in method ' + self.currentMethodName + '!')
                 lvalue = LValue(lobjectData.name, lobjectData.type, LValueType.OBJECT_WITH_INT_VARIABLE)
                 self.GetNextToken()
                 if not self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
@@ -757,7 +829,7 @@ class SyntaxAnalyzer(object):
             else:
                 lvalueData = self.localSymbolTable.FindSymbolGlobal(self.GetCurrentToken().value)
                 if lvalueData == None:
-                    raise Exception('Variable ' + lvalueData.name + ' is undefined in method ' + self.currentMethodName + '!')
+                    raise Exception('Variable ' + self.GetCurrentToken().value + ' is undefined in method ' + self.currentMethodName + '!')
                 lvalue = LValue(lvalueData.name, lvalueData.type, LValueType.VARIABLE)
         elif self.Match(self.GetCurrentToken(), TokenType.KEYWORD, 'this') \
                 and self.Match(self.GetNextToken(), TokenType.ACCESS) \
@@ -781,7 +853,7 @@ class SyntaxAnalyzer(object):
             if self.Match(self.PeekNextToken(), TokenType.ACCESS):
                 robjectData = self.localSymbolTable.FindSymbolGlobal(self.GetCurrentToken().value)
                 if robjectData == None:
-                    raise Exception('Variable ' + robjectData.name + ' is undefined in method ' + self.currentMethodName + '!')
+                    raise Exception('Variable ' + self.GetCurrentToken().value + ' is undefined in method ' + self.currentMethodName + '!')
                 rvalue = RValue(robjectData.name, robjectData.type, RValueType.OBJECT_WITH_INT_VARIABLE)
                 self.GetNextToken()
                 if not self.Match(self.GetNextToken(), TokenType.IDENTIFIER):
@@ -795,7 +867,7 @@ class SyntaxAnalyzer(object):
             else:
                 rvalueData = self.localSymbolTable.FindSymbolGlobal(self.GetCurrentToken().value)
                 if rvalueData == None:
-                    raise Exception('Variable ' + rvalueData.name + ' is undefined in method ' + self.currentMethodName + '!')
+                    raise Exception('Variable ' + self.GetCurrentToken().value + ' is undefined in method ' + self.currentMethodName + '!')
                 if rvalueData.type != expType:
                     raise Exception('Type ' + expType + ' expected! Got type ' + rvalueData.type + '!')
                 rvalue = RValue(rvalueData.name, rvalueData.type, RValueType.VARIABLE)
@@ -827,6 +899,8 @@ class SyntaxAnalyzer(object):
         for varData in self.localSymbolTable.GetLastTable().symbolsData:
             if varData.type == 'int':
                 size += 4
+            elif varData.type == 'str':
+                continue
             else:
                 size += len(4*self.definedClasses[varData.type].vars)
         return size
@@ -877,4 +951,4 @@ class SyntaxAnalyzer(object):
         elif rvalue.rvalueType == RValueType.NUMBER:
             return 'MOV EAX, DWORD ' + self.GetCurrentToken().value + '\n'
         else:
-            raise Exception()
+            raise Exception()   

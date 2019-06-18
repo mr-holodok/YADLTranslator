@@ -26,3 +26,4 @@ class TokenType(Enum):
     EQUAL = 13                      # ==
     SEMICOLON = 14                  # ;
     ACCESS = 15                     # .
+    STRING_LITERAL = 16             # 'string'
